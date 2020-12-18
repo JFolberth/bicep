@@ -59,7 +59,7 @@ namespace Bicep.LanguageServer.Handlers
                     Documentation = new StringOrMarkupContent(new MarkupContent
                     {
                         Kind = MarkupKind.Markdown,
-                        Value = $"The `{symbol.Name}` function."
+                        Value = overload.Description
                     })
                 }))
             });
