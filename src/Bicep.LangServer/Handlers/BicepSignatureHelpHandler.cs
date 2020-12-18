@@ -1,7 +1,9 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Bicep.Core.Semantics;
@@ -53,15 +55,58 @@ namespace Bicep.LanguageServer.Handlers
 
             return Task.FromResult<SignatureHelp?>(new SignatureHelp
             {
-                Signatures = new Container<SignatureInformation>(functionSymbol.Overloads.Select(overload => new SignatureInformation
-                {
-                    Label = overload.TypeSignature,
-                    Documentation = new StringOrMarkupContent(new MarkupContent
-                    {
-                        Kind = MarkupKind.Markdown,
-                        Value = overload.Description
-                    })
-                }))
+                Signatures = new Container<SignatureInformation>(functionSymbol.Overloads.Select(CreateSignature))
+            });
+        }
+
+        private SignatureInformation CreateSignature(FunctionOverload overload)
+        {
+            const string delimiter = ", ";
+
+            var typeSignature = new StringBuilder();
+            var parameters = new List<ParameterInformation>();
+
+            typeSignature.Append(overload.Name);
+            typeSignature.Append('(');
+
+            foreach (var fixedParameter in overload.FixedParameters)
+            {
+                AppendParameter(typeSignature, parameters, fixedParameter.Signature, fixedParameter.Description);
+                typeSignature.Append(delimiter);
+            }
+
+            // TODO: Adjust based specified parameters
+            if (overload.VariableParameter != null)
+            {
+                AppendParameter(typeSignature, parameters, overload.VariableParameter.Signature, overload.VariableParameter.Description);
+                typeSignature.Append(delimiter);
+            }
+
+            if (parameters.Any())
+            {
+                typeSignature.Remove(typeSignature.Length - delimiter.Length, delimiter.Length);
+            }
+
+            typeSignature.Append(')');
+
+            return new SignatureInformation
+            {
+                Label = typeSignature.ToString(),
+                Documentation = overload.Description,
+                Parameters = new Container<ParameterInformation>(parameters)
+            };
+        }
+
+        private static void AppendParameter(StringBuilder typeSignature, List<ParameterInformation> parameterInfos, string parameterSignature, string documentation)
+        {
+            int start = typeSignature.Length;
+            typeSignature.Append(parameterSignature);
+            int end = typeSignature.Length;
+
+            parameterInfos.Add(new ParameterInformation
+            {
+                Label = new ParameterInformationLabel((start, end)),
+                Documentation = documentation
             });
         }
 
