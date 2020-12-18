@@ -13,7 +13,6 @@ using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Utils;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
-using SymbolKind = Bicep.Core.Semantics.SymbolKind;
 
 namespace Bicep.LanguageServer.Handlers
 {
