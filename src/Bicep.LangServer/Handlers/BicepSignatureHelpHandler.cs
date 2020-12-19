@@ -6,8 +6,10 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Azure.Deployments.Core.Extensions;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
+using Bicep.Core.TypeSystem;
 using Bicep.LanguageServer.CompilationManager;
 using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Utils;
@@ -45,17 +47,38 @@ namespace Bicep.LanguageServer.Handlers
                 return NoHelp();
             }
 
-            var symbol = context.Compilation.GetEntrypointSemanticModel().GetSymbolInfo(functionCall);
+            var semanticModel = context.Compilation.GetEntrypointSemanticModel();
+            var symbol = semanticModel.GetSymbolInfo(functionCall);
             if (symbol is not FunctionSymbol functionSymbol)
             {
                 // no symbol or symbol is not a function
                 return NoHelp();
             }
 
-            return Task.FromResult<SignatureHelp?>(new SignatureHelp
+            var argumentTypes = functionCall.Arguments.Select(arg => semanticModel.GetTypeInfo(arg)).ToList();
+
+            return Task.FromResult<SignatureHelp?>(CreateSignatureHelp(argumentTypes, functionSymbol));
+        }
+
+        private SignatureHelp CreateSignatureHelp(List<TypeSymbol> argumentTypes, FunctionSymbol symbol)
+        {
+            var matchingOverloads = symbol.Overloads
+                .Where(fo => !fo.MaximumArgumentCount.HasValue || argumentTypes.Count <= fo.MaximumArgumentCount.Value)
+                .Select(overload => (overload, result: overload.Match(argumentTypes, out _, out _)))
+                .ToList();
+
+            int activeSignatureIndex = matchingOverloads.IndexOf(tuple => tuple.result == FunctionMatchResult.Match);
+            if (activeSignatureIndex < 0)
             {
-                Signatures = new Container<SignatureInformation>(functionSymbol.Overloads.Select(CreateSignature))
-            });
+                // no best match - try potential match
+                activeSignatureIndex = matchingOverloads.IndexOf(tuple => tuple.result == FunctionMatchResult.PotentialMatch);
+            }
+
+            return new SignatureHelp
+            {
+                Signatures = new Container<SignatureInformation>(matchingOverloads.Select(tuple => CreateSignature(tuple.overload))),
+                ActiveSignature = activeSignatureIndex < 0 ? (int?) null : activeSignatureIndex
+            };
         }
 
         private SignatureInformation CreateSignature(FunctionOverload overload)
