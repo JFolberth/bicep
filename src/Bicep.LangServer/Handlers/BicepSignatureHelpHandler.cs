@@ -62,6 +62,8 @@ namespace Bicep.LanguageServer.Handlers
 
         private SignatureHelp CreateSignatureHelp(List<TypeSymbol> argumentTypes, FunctionSymbol symbol)
         {
+            // exclude overloads where the specified arguments have exceeded the maximum
+            // allow count mismatches because the user may not have started typing the arguments yet
             var matchingOverloads = symbol.Overloads
                 .Where(fo => !fo.MaximumArgumentCount.HasValue || argumentTypes.Count <= fo.MaximumArgumentCount.Value)
                 .Select(overload => (overload, result: overload.Match(argumentTypes, out _, out _)))
